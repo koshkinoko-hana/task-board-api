@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskVisibility {
+  ONLY_ME
+  LIST
+  ANYONE
+}
+
+enum AssignmentStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  /// Login handle; normalized to lowercase in the API layer.
+  nickname     String    @unique
+  /// Optional; reserved for a future email verification / notification flow.
+  email        String?   @unique
+  passwordHash String
+  role         Role      @default(USER)
+  bannedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  createdTasks    Task[]           @relation("TaskCreator")
+  assignedTasks   Task[]           @relation("TaskAssignee")
+  assignedByTasks Task[]           @relation("TaskAssignedBy")
+  taskViewers     TaskViewer[]
+  blocksCreated   AssignmentBlock[] @relation("Blocker")
+  blocksReceived  AssignmentBlock[] @relation("BlockedUser")
+  blockAudits     BlockAudit[]
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  tasks     TaskTag[]
+}
+
+model Task {
+  id                 String            @id @default(cuid())
+  title              String
+  description        String?
+  status             TaskStatus        @default(TODO)
+  priority           TaskPriority      @default(MEDIUM)
+  visibility         TaskVisibility    @default(ANYONE)
+  creatorId          String
+  assigneeId         String?
+  assignmentStatus   AssignmentStatus  @default(NONE)
+  assignedById       String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  creator    User          @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  assignee   User?         @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assignedBy User?         @relation("TaskAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  viewers    TaskViewer[]
+  tags       TaskTag[]
+}
+
+model TaskViewer {
+  id     String @id @default(cuid())
+  taskId String
+  userId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+}
+
+model TaskTag {
+  taskId String
+  tagId  String
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+}
+
+model AssignmentBlock {
+  id            String   @id @default(cuid())
+  blockerId     String
+  blockedUserId String
+  comment       String?
+  createdAt     DateTime @default(now())
+
+  blocker     User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedUser User @relation("BlockedUser", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedUserId])
+}
+
+model BlockAudit {
+  id            String   @id @default(cuid())
+  action        String
+  actorId       String
+  blockerId     String
+  blockedUserId String
+  comment       String?
+  createdAt     DateTime @default(now())
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,34 @@
+---
+description: NestJS patterns and conventions used in task-board-api src/
+globs: src/**/*.ts
+alwaysApply: false
+---
+
+# Task Board API — Nest conventions
+
+## Guards (order matters)
+
+Registered globally in `app.module.ts`: **JwtAuthGuard** → **BannedGuard** → **RolesGuard**.
+
+- Use **`@Public()`** on handlers that must skip JWT (import from `src/common/decorators/public.decorator`).
+- Use **`@Roles(Role.ADMIN)`** (import `@prisma/client` `Role`) for admin-only controllers or routes.
+
+## Request context
+
+- **`@CurrentUser() user: JwtPayload`** — `sub` is user id; includes `nickname`, `email`, `role`. Type: `src/auth/jwt-payload.type.ts`.
+
+## DTOs and validation
+
+- Put **`class-validator` / `class-transformer` DTOs** in `dto/` next to the feature (see `src/tasks/dto/`, `src/auth/dto/`).
+- Global pipe: `whitelist`, `forbidNonWhitelisted`, `transform` — unknown body fields **fail** validation.
+
+## Prisma
+
+- Inject **`PrismaService`** from `src/prisma/prisma.service.ts` in services.
+- Prefer **Prisma enums** from `@prisma/client` in DTOs (`IsEnum`) to stay aligned with `schema.prisma`.
+
+## New surface area
+
+1. Add or extend **controller** methods.
+2. Implement in **service**; keep controllers thin.
+3. If new bounded area: **module** + register in **`AppModule.imports`**.

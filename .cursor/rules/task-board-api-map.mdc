@@ -1,0 +1,49 @@
+---
+description: Where code and config live in task-board-api (navigation map)
+alwaysApply: true
+---
+
+# Task Board API — repo map
+
+Stack: **NestJS**, **Prisma 7**, **SQLite** (`@prisma/adapter-better-sqlite3`), **JWT** auth.
+
+## Start here
+
+| What | Where |
+|------|--------|
+| Bootstrap, global `ValidationPipe` | `src/main.ts` |
+| Modules, global guards | `src/app.module.ts` |
+| Env loading | `src/load-env.ts`, `.env` / `.env.example` |
+
+## HTTP routes → files
+
+| Area | Controller | Business logic |
+|------|------------|----------------|
+| Auth (`/auth/*`) | `src/auth/auth.controller.ts` | `src/auth/auth.service.ts` |
+| Tasks (`/tasks/*`) | `src/tasks/tasks.controller.ts` | `src/tasks/tasks.service.ts` (large) |
+| Users (`/users`) | `src/users/users.controller.ts` | `src/users/users.service.ts` |
+| Blocks (`/blocks/*`) | `src/blocks/blocks.controller.ts` | `src/blocks/blocks.service.ts` |
+| Admin (`/admin/*`) | `src/admin/admin.controller.ts` | `src/admin/admin.service.ts` |
+
+Public routes: `@Public()` on `auth` register/login. Everything else JWT unless marked public.
+
+## Cross-cutting (`src/common/`)
+
+- **Guards:** `jwt-auth.guard.ts` (JWT + skip if public), `banned.guard.ts`, `roles.guard.ts`
+- **Decorators:** `public.decorator.ts`, `roles.decorator.ts`, `current-user.decorator.ts`
+- **JWT payload shape:** `src/auth/jwt-payload.type.ts`
+
+## Data layer
+
+- **Schema & enums (source of truth):** `prisma/schema.prisma`
+- **Migrations:** `prisma/migrations/`
+- **Seed (admin/user test accounts):** `prisma/seed.ts`
+- **Prisma 7 config:** `prisma.config.ts`
+- **DB client in app:** `src/prisma/prisma.service.ts`, `src/prisma/prisma.module.ts`
+
+## API testing & docs
+
+- Postman: `postman/Task-Board-API.postman_collection.json`
+- Human-readable route list: `README.md`
+
+When adding a feature, match the existing **module + controller + service + dto/** layout under `src/<feature>/`.

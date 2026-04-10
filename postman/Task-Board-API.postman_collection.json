@@ -1,0 +1,332 @@
+{
+  "info": {
+    "name": "Task Board API",
+    "description": "NestJS task board API. Seed: `npx prisma db seed` — accounts **admin** / **user**, password **password123**. Run **Auth → Login** first; the test script stores `accessToken` on the collection. Replace `taskId`, `tagId`, and user ids with values from responses or **GET /users**.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "accessToken", "value": "" },
+    { "key": "taskId", "value": "" },
+    { "key": "tagId", "value": "" },
+    { "key": "assigneeUserId", "value": "" },
+    { "key": "blockedUserId", "value": "" },
+    { "key": "targetUserId", "value": "" },
+    { "key": "blockerId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "try {",
+                  "  const j = pm.response.json();",
+                  "  if (j.accessToken) pm.collectionVariables.set('accessToken', j.accessToken);",
+                  "} catch (e) {}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nickname\": \"newuser_01\",\n  \"password\": \"password123\",\n  \"email\": \"newuser@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register",
+            "description": "Email is optional. Nickname: 3–24 chars, lowercase letters, digits, underscore."
+          }
+        },
+        {
+          "name": "Login (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "try {",
+                  "  const j = pm.response.json();",
+                  "  if (j.accessToken) pm.collectionVariables.set('accessToken', j.accessToken);",
+                  "} catch (e) {}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nickname\": \"admin\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Login (user)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "try {",
+                  "  const j = pm.response.json();",
+                  "  if (j.accessToken) pm.collectionVariables.set('accessToken', j.accessToken);",
+                  "} catch (e) {}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nickname\": \"user\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tasks",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          { "key": "token", "value": "{{accessToken}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "List tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tasks?page=1&pageSize=20&sort=updatedAt&order=desc",
+            "description": "Optional query params: page, pageSize, status (TODO|IN_PROGRESS|DONE), priority (LOW|MEDIUM|HIGH), assignmentStatus (NONE|PENDING|APPROVED|REJECTED), q, tag, sort (createdAt|updatedAt|title), order (asc|desc). Edit the URL to add or change params."
+          }
+        },
+        {
+          "name": "Get task by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tasks/{{taskId}}"
+          }
+        },
+        {
+          "name": "Create task",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Example task\",\n  \"description\": \"Optional details\",\n  \"status\": \"TODO\",\n  \"priority\": \"MEDIUM\",\n  \"visibility\": \"ONLY_ME\",\n  \"viewerUserIds\": []\n}"
+            },
+            "url": "{{baseUrl}}/tasks",
+            "description": "visibility: ONLY_ME | LIST | ANYONE. For LIST, set viewerUserIds to user id strings. assigneeId optional."
+          }
+        },
+        {
+          "name": "Update task",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated title\",\n  \"description\": \"Updated description\",\n  \"status\": \"IN_PROGRESS\",\n  \"priority\": \"HIGH\",\n  \"visibility\": \"ANYONE\",\n  \"viewerUserIds\": []\n}"
+            },
+            "url": "{{baseUrl}}/tasks/{{taskId}}"
+          }
+        },
+        {
+          "name": "Delete task",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/tasks/{{taskId}}"
+          }
+        },
+        {
+          "name": "Assign task",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assigneeId\": \"{{assigneeUserId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/tasks/{{taskId}}/assignment"
+          }
+        },
+        {
+          "name": "Approve assignment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/tasks/{{taskId}}/assignment/approve"
+          }
+        },
+        {
+          "name": "Reject assignment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"blockAssigner\": false,\n  \"comment\": \"Optional reason\"\n}"
+            },
+            "url": "{{baseUrl}}/tasks/{{taskId}}/assignment/reject"
+          }
+        },
+        {
+          "name": "Add tag",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"bug\"\n}"
+            },
+            "url": "{{baseUrl}}/tasks/{{taskId}}/tags"
+          }
+        },
+        {
+          "name": "Remove tag",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/tasks/{{taskId}}/tags/{{tagId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          { "key": "token", "value": "{{accessToken}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "List users (picker)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Blocks",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          { "key": "token", "value": "{{accessToken}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "Create block",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"blockedUserId\": \"{{blockedUserId}}\",\n  \"comment\": \"Optional\"\n}"
+            },
+            "url": "{{baseUrl}}/blocks"
+          }
+        },
+        {
+          "name": "List my blocks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/blocks/me"
+          }
+        },
+        {
+          "name": "Remove my block",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/blocks/me/{{blockedUserId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          { "key": "token", "value": "{{accessToken}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "Ban user",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/admin/users/{{targetUserId}}/ban",
+            "description": "Requires ADMIN. Use **Login (admin)** first."
+          }
+        },
+        {
+          "name": "Unban user",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/admin/users/{{targetUserId}}/unban"
+          }
+        },
+        {
+          "name": "Remove block (admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/admin/blocks?blockerId={{blockerId}}&blockedUserId={{blockedUserId}}",
+            "description": "Required query: blockerId, blockedUserId. Optional: &comment=..."
+          }
+        }
+      ]
+    }
+  ]
+}

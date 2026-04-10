@@ -1,0 +1,13 @@
+---
+description: Prisma schema, migrations, and seed for task-board-api
+globs: prisma/**/*
+alwaysApply: false
+---
+
+# Task Board API — Prisma
+
+- **`schema.prisma`**: models and enums (`Role`, `TaskStatus`, `TaskPriority`, `TaskVisibility`, `AssignmentStatus`). Changing enums affects DTOs and `tasks.service` filters—grep the enum name after edits.
+- **`prisma.config.ts`**: datasource URL (Prisma 7 style); keep in sync with `.env` `DATABASE_URL`.
+- **Migrations:** `npx prisma migrate dev` (dev) / `npx prisma migrate deploy` (CI/prod).
+- **Seed:** `prisma/seed.ts` — upserts `admin` and `user` (password `password123`). Run `npx prisma db seed` after deploy when needed.
+- **Runtime:** App uses **SQLite** via `@prisma/adapter-better-sqlite3` in `src/prisma/prisma.service.ts`; do not assume PostgreSQL-only APIs in application code.
