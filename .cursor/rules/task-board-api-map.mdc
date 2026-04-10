@@ -26,7 +26,7 @@ Stack: **NestJS**, **Prisma 7**, **SQLite** (`@prisma/adapter-better-sqlite3`), 
 | Blocks (`/blocks/*`) | `src/blocks/blocks.controller.ts` | `src/blocks/blocks.service.ts` |
 | Admin (`/admin/*`, `GET /admin/users`, `GET /admin/blocks`) | `src/admin/admin.controller.ts` | `src/admin/admin.service.ts` |
 
-Public routes: `@Public()` on `auth` register/login. Everything else JWT unless marked public.
+Public routes: `@Public()` on `auth` register/login; `PATCH /auth/password` is JWT-protected. Everything else JWT unless marked public.
 
 ## Cross-cutting (`src/common/`)
 

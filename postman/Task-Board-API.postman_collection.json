@@ -105,6 +105,27 @@
             },
             "url": "{{baseUrl}}/auth/login"
           }
+        },
+        {
+          "name": "Change password",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{accessToken}}", "type": "string" }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"password123\",\n  \"newPassword\": \"newpassword456\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/password",
+            "description": "Login first. Log in again after changing password to get a token (optional until JWT expires)."
+          }
         }
       ]
     },

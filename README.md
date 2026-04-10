@@ -36,6 +36,7 @@ Login and registration use a **nickname** (3–24 chars: `a-z`, `0-9`, `_`, stor
 
 - `POST /auth/register` — body: `{ "nickname", "password", "email?" }`
 - `POST /auth/login` — body: `{ "nickname", "password" }` — returns `{ accessToken, user: { id, nickname, email, role } }`
+- `PATCH /auth/password` — body: `{ "currentPassword", "newPassword" }` (min 8 chars); **Bearer** required; returns `{ "ok": true }`
 - Send `Authorization: Bearer <accessToken>` on protected routes.
 
 Banned users receive **403** with `{ "code": "BANNED" }`.

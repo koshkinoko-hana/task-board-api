@@ -4,7 +4,7 @@ info:
   description: |
     NestJS task board API. Import this file in Postman via **Import → OpenAPI** to get a schema for docs and validation.
 
-    - **Auth:** `POST /auth/login` and `POST /auth/register` are public; all other paths need `Authorization: Bearer <token>`.
+    - **Auth:** `POST /auth/login` and `POST /auth/register` are public; `PATCH /auth/password` needs a Bearer token; all other paths need `Authorization: Bearer <token>`.
     - Error bodies are often `{ "message": string, "statusCode": number }` or `{ "code": string, "message": string }` (see Nest exception filters).
   version: 1.0.0
 
@@ -168,6 +168,13 @@ components:
         nickname: { type: string }
         password: { type: string }
 
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string, minLength: 1 }
+        newPassword: { type: string, minLength: 8 }
+
     AuthResponse:
       type: object
       required: [accessToken, user]
@@ -321,6 +328,29 @@ paths:
               schema: { $ref: '#/components/schemas/AuthResponse' }
         '401':
           description: INVALID_CREDENTIALS
+        '403':
+          description: BANNED
+
+  /auth/password:
+    patch:
+      tags: [Auth]
+      summary: Change password (authenticated)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequest' }
+      responses:
+        '200':
+          description: Password updated (existing JWTs stay valid until expiry)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '400':
+          description: SAME_PASSWORD
+        '401':
+          description: INVALID_CURRENT_PASSWORD or missing/invalid token
         '403':
           description: BANNED
 
