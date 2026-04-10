@@ -16,9 +16,14 @@ import { JwtPayload } from '../auth/jwt-payload.type';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssignTaskDto } from './dto/assign-task.dto';
 import { CreateTaskDto } from './dto/create-task.dto';
-import { ListTasksQueryDto, TaskSortField } from './dto/list-tasks.query.dto';
+import {
+  ListTasksMineFilter,
+  ListTasksQueryDto,
+  TaskSortField,
+} from './dto/list-tasks.query.dto';
 import { RejectAssignmentDto } from './dto/reject-assignment.dto';
-import { UpdateTaskDto } from './dto/update-task.dto';
+import { ReplaceTaskDto } from './dto/replace-task.dto';
+import { UpdateAssigneeStatusDto } from './dto/update-assignee-status.dto';
 
 const LIST_FETCH_CAP = 1000;
 
@@ -147,8 +152,12 @@ export class TasksService {
 
   private buildFilterWhere(query: ListTasksQueryDto): Prisma.TaskWhereInput {
     const parts: Prisma.TaskWhereInput[] = [];
-    if (query.status) parts.push({ status: query.status });
-    if (query.priority) parts.push({ priority: query.priority });
+    if (query.status?.length) {
+      parts.push({ status: { in: [...new Set(query.status)] } });
+    }
+    if (query.priority?.length) {
+      parts.push({ priority: { in: [...new Set(query.priority)] } });
+    }
     if (query.assignmentStatus) {
       parts.push({ assignmentStatus: query.assignmentStatus });
     }
@@ -161,14 +170,35 @@ export class TasksService {
         ],
       });
     }
-    if (query.tag?.trim()) {
-      const name = this.normalizeTagName(query.tag);
-      parts.push({
-        tags: { some: { tag: { name } } },
-      });
+    if (query.tag?.length) {
+      const names = [
+        ...new Set(
+          query.tag
+            .map((t) => this.normalizeTagName(t))
+            .filter((n) => n.length > 0),
+        ),
+      ];
+      if (names.length) {
+        parts.push({
+          tags: { some: { tag: { name: { in: names } } } },
+        });
+      }
     }
     if (!parts.length) return {};
     return { AND: parts };
+  }
+
+  private buildMineWhere(
+    userId: string,
+    mine?: ListTasksMineFilter,
+  ): Prisma.TaskWhereInput | null {
+    const m = mine ?? ListTasksMineFilter.all;
+    if (m === ListTasksMineFilter.all) return null;
+    if (m === ListTasksMineFilter.created) return { creatorId: userId };
+    if (m === ListTasksMineFilter.assigned) return { assigneeId: userId };
+    return {
+      OR: [{ creatorId: userId }, { assigneeId: userId }],
+    };
   }
 
   private async blockNeighbors(userId: string): Promise<Set<string>> {
@@ -299,15 +329,19 @@ export class TasksService {
 
     const filterWhere = this.buildFilterWhere(query);
     const hasFilters = Object.keys(filterWhere).length > 0;
+    const mineWhere = this.buildMineWhere(user.sub, query.mine);
+    const scopeParts: Prisma.TaskWhereInput[] = [];
+    if (hasFilters) scopeParts.push(filterWhere);
+    if (mineWhere) scopeParts.push(mineWhere);
 
     const where: Prisma.TaskWhereInput =
       user.role === Role.ADMIN
-        ? hasFilters
-          ? filterWhere
+        ? scopeParts.length
+          ? { AND: scopeParts }
           : {}
         : {
             AND: [
-              ...(hasFilters ? [filterWhere] : []),
+              ...scopeParts,
               this.visibilityWhereForUser(user.sub),
             ],
           };
@@ -442,7 +476,45 @@ export class TasksService {
     }
   }
 
-  async update(user: JwtPayload, id: string, dto: UpdateTaskDto) {
+  /** Approved assignee (or admin) may change workflow status only. */
+  async updateStatusAsAssignee(
+    user: JwtPayload,
+    taskId: string,
+    dto: UpdateAssigneeStatusDto,
+  ) {
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      include: { viewers: true },
+    });
+    if (!task) throw new NotFoundException();
+    if (!this.canReadTask(user, task)) throw new NotFoundException();
+    if (user.role !== Role.ADMIN) {
+      const neighbors = await this.blockNeighbors(user.sub);
+      if (!this.passesBlockFilter(user.sub, task, neighbors)) {
+        throw new NotFoundException();
+      }
+      const isApprovedAssignee =
+        task.assigneeId === user.sub &&
+        task.assignmentStatus === AssignmentStatus.APPROVED;
+      if (!isApprovedAssignee) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN_ASSIGNEE_STATUS',
+          message:
+            'Only the approved assignee or an admin can update task status here.',
+        });
+      }
+    }
+
+    const updated = await this.prisma.task.update({
+      where: { id: taskId },
+      data: { status: dto.status },
+      include: this.includeTask(),
+    });
+    return this.mapTask(this.asTaskRow(updated));
+  }
+
+  /** Full replace of title, description, status, priority, visibility, and LIST viewers. */
+  async replace(user: JwtPayload, id: string, dto: ReplaceTaskDto) {
     const task = await this.prisma.task.findUnique({
       where: { id },
       include: { viewers: true },
@@ -458,15 +530,24 @@ export class TasksService {
 
     this.assertCanEditTaskMeta(user, task);
 
-    const data: Prisma.TaskUpdateInput = {};
-    if (dto.title !== undefined) data.title = dto.title;
-    if (dto.description !== undefined) data.description = dto.description;
-    if (dto.status !== undefined) data.status = dto.status;
-    if (dto.priority !== undefined) data.priority = dto.priority;
-    if (dto.visibility !== undefined) data.visibility = dto.visibility;
+    const description =
+      dto.description.trim() === '' ? null : dto.description;
+    const data: Prisma.TaskUpdateInput = {
+      title: dto.title,
+      description,
+      status: dto.status,
+      priority: dto.priority,
+      visibility: dto.visibility,
+    };
 
-    if (dto.visibility === TaskVisibility.LIST && dto.viewerUserIds !== undefined) {
-      const viewerIds = [...new Set(dto.viewerUserIds)].filter(Boolean);
+    const viewerIds =
+      dto.visibility === TaskVisibility.LIST
+        ? [...new Set(dto.viewerUserIds)].filter(
+            (vid) => vid && vid !== user.sub,
+          )
+        : [];
+
+    if (dto.visibility === TaskVisibility.LIST && viewerIds.length) {
       const count = await this.prisma.user.count({
         where: { id: { in: viewerIds }, bannedAt: null },
       });
@@ -476,17 +557,13 @@ export class TasksService {
           message: 'One or more viewer user ids are invalid.',
         });
       }
-      await this.prisma.taskViewer.deleteMany({ where: { taskId: id } });
-      if (viewerIds.length) {
-        await this.prisma.taskViewer.createMany({
-          data: viewerIds.map((uid) => ({ taskId: id, userId: uid })),
-        });
-      }
-    } else if (
-      dto.visibility !== undefined &&
-      dto.visibility !== TaskVisibility.LIST
-    ) {
-      await this.prisma.taskViewer.deleteMany({ where: { taskId: id } });
+    }
+
+    await this.prisma.taskViewer.deleteMany({ where: { taskId: id } });
+    if (dto.visibility === TaskVisibility.LIST && viewerIds.length) {
+      await this.prisma.taskViewer.createMany({
+        data: viewerIds.map((uid) => ({ taskId: id, userId: uid })),
+      });
     }
 
     const updated = await this.prisma.task.update({

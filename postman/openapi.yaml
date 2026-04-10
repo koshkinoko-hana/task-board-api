@@ -1,0 +1,822 @@
+openapi: 3.0.3
+info:
+  title: Task Board API
+  description: |
+    NestJS task board API. Import this file in Postman via **Import → OpenAPI** to get a schema for docs and validation.
+
+    - **Auth:** `POST /auth/login` and `POST /auth/register` are public; all other paths need `Authorization: Bearer <token>`.
+    - Error bodies are often `{ "message": string, "statusCode": number }` or `{ "code": string, "message": string }` (see Nest exception filters).
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: Local dev (default PORT)
+
+tags:
+  - name: Auth
+  - name: Tasks
+  - name: Tags
+  - name: Users
+  - name: Blocks
+  - name: Admin
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT from login/register response (`accessToken`).
+
+  schemas:
+    Role:
+      type: string
+      enum: [USER, ADMIN]
+
+    TaskStatus:
+      type: string
+      enum: [TODO, IN_PROGRESS, DONE]
+
+    TaskPriority:
+      type: string
+      enum: [LOW, MEDIUM, HIGH]
+
+    TaskVisibility:
+      type: string
+      enum: [ONLY_ME, LIST, ANYONE]
+
+    AssignmentStatus:
+      type: string
+      enum: [NONE, PENDING, APPROVED, REJECTED]
+
+    UserRef:
+      type: object
+      required: [id, nickname]
+      properties:
+        id:
+          type: string
+        nickname:
+          type: string
+        email:
+          type: string
+          nullable: true
+
+    UserPicker:
+      type: object
+      required: [id, nickname, role]
+      properties:
+        id: { type: string }
+        nickname: { type: string }
+        email: { type: string, nullable: true }
+        role: { $ref: '#/components/schemas/Role' }
+
+    AdminUserRow:
+      type: object
+      required: [id, nickname, role, createdAt]
+      properties:
+        id: { type: string }
+        nickname: { type: string }
+        email: { type: string, nullable: true }
+        role: { $ref: '#/components/schemas/Role' }
+        bannedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    TagEntry:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name:
+          type: string
+          description: Normalized lowercase (same as `GET /tasks?tag=` filter).
+
+    Task:
+      type: object
+      required:
+        - id
+        - title
+        - status
+        - priority
+        - visibility
+        - creator
+        - assignmentStatus
+        - viewerUserIds
+        - tags
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        visibility: { $ref: '#/components/schemas/TaskVisibility' }
+        creator: { $ref: '#/components/schemas/UserRef' }
+        assignee:
+          allOf:
+            - { $ref: '#/components/schemas/UserRef' }
+          nullable: true
+        assignmentStatus: { $ref: '#/components/schemas/AssignmentStatus' }
+        assignedById: { type: string, nullable: true }
+        viewerUserIds:
+          type: array
+          items: { type: string }
+        tags:
+          type: array
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id: { type: string }
+              name: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    TaskListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Task' }
+        total: { type: integer }
+        page: { type: integer }
+        pageSize: { type: integer }
+
+    RegisterRequest:
+      type: object
+      required: [nickname, password]
+      properties:
+        nickname:
+          type: string
+          minLength: 3
+          maxLength: 24
+          pattern: '^[a-z0-9_]+$'
+          description: Lowercase letters, digits, underscore; normalized server-side.
+        password:
+          type: string
+          minLength: 8
+        email:
+          type: string
+          format: email
+          description: Optional.
+
+    LoginRequest:
+      type: object
+      required: [nickname, password]
+      properties:
+        nickname: { type: string }
+        password: { type: string }
+
+    AuthResponse:
+      type: object
+      required: [accessToken, user]
+      properties:
+        accessToken: { type: string }
+        user:
+          type: object
+          required: [id, nickname, role]
+          properties:
+            id: { type: string }
+            nickname: { type: string }
+            email: { type: string, nullable: true }
+            role: { $ref: '#/components/schemas/Role' }
+
+    CreateTaskRequest:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 500 }
+        description: { type: string, maxLength: 5000 }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        visibility: { $ref: '#/components/schemas/TaskVisibility' }
+        viewerUserIds:
+          type: array
+          items: { type: string }
+          description: Required when visibility is LIST (allowed viewers).
+        assigneeId:
+          type: string
+          description: Omit or use a real user id; empty string is treated as no assignee.
+
+    ReplaceTaskRequest:
+      type: object
+      required: [title, description, status, priority, visibility, viewerUserIds]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 500 }
+        description:
+          type: string
+          maxLength: 5000
+          description: Use empty string for no description.
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        visibility: { $ref: '#/components/schemas/TaskVisibility' }
+        viewerUserIds:
+          type: array
+          items: { type: string }
+          description: >
+            When visibility is LIST, ids of extra viewers (creator excluded automatically).
+            Ignored for other visibilities (viewers cleared).
+
+    UpdateAssigneeStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { $ref: '#/components/schemas/TaskStatus' }
+
+    AssignTaskRequest:
+      type: object
+      required: [assigneeId]
+      properties:
+        assigneeId: { type: string, minLength: 1 }
+
+    RejectAssignmentRequest:
+      type: object
+      properties:
+        blockAssigner: { type: boolean }
+        comment: { type: string, maxLength: 2000 }
+
+    AddTagRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+
+    CreateBlockRequest:
+      type: object
+      required: [blockedUserId]
+      properties:
+        blockedUserId: { type: string, minLength: 1 }
+        comment: { type: string, maxLength: 2000 }
+
+    AssignmentBlock:
+      type: object
+      required: [id, blockerId, blockedUserId, createdAt]
+      properties:
+        id: { type: string }
+        blockerId: { type: string }
+        blockedUserId: { type: string }
+        comment: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    AssignmentBlockWithUser:
+      allOf:
+        - { $ref: '#/components/schemas/AssignmentBlock' }
+        - type: object
+          properties:
+            blockedUser: { $ref: '#/components/schemas/UserRef' }
+
+    AssignmentBlockAdminRow:
+      allOf:
+        - { $ref: '#/components/schemas/AssignmentBlock' }
+        - type: object
+          required: [blocker, blockedUser]
+          properties:
+            blocker: { $ref: '#/components/schemas/UserRef' }
+            blockedUser: { $ref: '#/components/schemas/UserRef' }
+
+    OkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean, enum: [true] }
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Created; returns token like login.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400':
+          description: Validation error
+        '409':
+          description: NICKNAME_TAKEN or EMAIL_TAKEN
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Access token and user profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401':
+          description: INVALID_CREDENTIALS
+        '403':
+          description: BANNED
+
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: status
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/TaskStatus' }
+            maxItems: 20
+          description: Repeat param for OR (e.g. `status=TODO&status=DONE`).
+        - in: query
+          name: priority
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/TaskPriority' }
+            maxItems: 20
+          description: Repeat for OR across priorities.
+        - in: query
+          name: assignmentStatus
+          schema: { $ref: '#/components/schemas/AssignmentStatus' }
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 200 }
+        - in: query
+          name: tag
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string, maxLength: 100 }
+            maxItems: 30
+          description: >
+            Repeat for OR: task must have at least one of these tags (names normalized like single-tag filter).
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum: [createdAt, updatedAt, title]
+            default: updatedAt
+        - in: query
+          name: order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - in: query
+          name: mine
+          schema:
+            type: string
+            enum: [all, created, assigned, involved]
+          description: >
+            Optional. `created` — tasks you created; `assigned` — assigned to you;
+            `involved` — either; omit or `all` — no extra filter (still respects visibility and blocks).
+      responses:
+        '200':
+          description: Paginated task list (in-memory pagination after filters)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskListResponse' }
+        '401':
+          description: Unauthorized
+
+    post:
+      tags: [Tasks]
+      summary: Create task
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTaskRequest' }
+      responses:
+        '201':
+          description: Created task (mapped shape)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '403':
+          description: INVALID_VIEWERS, INVALID_ASSIGNEE, etc.
+
+  /tasks/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Tasks]
+      summary: Get task by id
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Task detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '404':
+          description: Not found or not visible
+    put:
+      tags: [Tasks]
+      summary: Replace task (creator/admin)
+      description: >
+        Full replacement of title, description, status, priority, visibility, and LIST viewers.
+        Does not change assignee, assignment, or tags.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReplaceTaskRequest' }
+      responses:
+        '200':
+          description: Task after replace
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '403':
+          description: FORBIDDEN_EDIT, INVALID_VIEWERS
+        '404':
+          description: Not found
+    delete:
+      tags: [Tasks]
+      summary: Delete task
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Task deleted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '403':
+          description: FORBIDDEN_DELETE
+        '404':
+          description: Not found
+
+  /tasks/{id}/assignee-status:
+    patch:
+      tags: [Tasks]
+      summary: Update task status (assignee)
+      description: >
+        Only the **approved** assignee or an **admin** may call this; it updates `status` and nothing else.
+        Creator/assignee meta edits use `PUT /tasks/{id}` (full body).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateAssigneeStatusRequest' }
+      responses:
+        '200':
+          description: Task after status change
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '403':
+          description: FORBIDDEN_ASSIGNEE_STATUS
+        '404':
+          description: Not found or not visible
+
+  /tasks/{id}/assignment:
+    post:
+      tags: [Tasks]
+      summary: Assign task
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssignTaskRequest' }
+      responses:
+        '200':
+          description: Task after assignment change
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '403':
+          description: INVALID_ASSIGNEE, FORBIDDEN_ASSIGN_OTHERS
+        '404':
+          description: Not found
+        '409':
+          description: ALREADY_ASSIGNED, ASSIGNMENT_BLOCKED
+
+  /tasks/{id}/assignment/approve:
+    post:
+      tags: [Tasks]
+      summary: Approve assignment
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Task after approval
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '403':
+          description: NOT_ASSIGNEE
+        '404':
+          description: Not found
+        '409':
+          description: ASSIGNMENT_NOT_PENDING
+
+  /tasks/{id}/assignment/reject:
+    post:
+      tags: [Tasks]
+      summary: Reject assignment
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RejectAssignmentRequest' }
+      responses:
+        '200':
+          description: Task after rejection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '403':
+          description: NOT_ASSIGNEE
+        '404':
+          description: Not found
+        '409':
+          description: ASSIGNMENT_NOT_PENDING, NO_ASSIGNER
+
+  /tasks/{id}/tags:
+    post:
+      tags: [Tasks]
+      summary: Add tag to task
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddTagRequest' }
+      responses:
+        '200':
+          description: Task with new tag
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '404':
+          description: Not found
+        '409':
+          description: TAG_ALREADY_ON_TASK
+
+  /tasks/{id}/tags/{tagId}:
+    delete:
+      tags: [Tasks]
+      summary: Remove tag from task
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: tagId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Task after tag removed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '404':
+          description: Not found
+
+  /tags:
+    get:
+      tags: [Tags]
+      summary: List all tags
+      description: >
+        For filter UIs: use `name` with `GET /tasks?tag=<name>` (matching is case-insensitive on the server).
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Tags sorted by name
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TagEntry' }
+        '401':
+          description: Unauthorized
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List users (picker)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Non-banned users for pickers
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/UserPicker' }
+
+  /blocks:
+    post:
+      tags: [Blocks]
+      summary: Create block
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateBlockRequest' }
+      responses:
+        '201':
+          description: Block created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssignmentBlock' }
+        '403':
+          description: CANNOT_BLOCK_SELF
+        '404':
+          description: User not found
+        '409':
+          description: BLOCK_EXISTS
+
+  /blocks/me:
+    get:
+      tags: [Blocks]
+      summary: List my blocks
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Blocks created by current user
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AssignmentBlockWithUser' }
+
+  /blocks/me/{blockedUserId}:
+    delete:
+      tags: [Blocks]
+      summary: Remove my block
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: blockedUserId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Block removed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '404':
+          description: Block not found
+
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: List all users
+      description: >
+        Includes **banned** users (`bannedAt` set). No passwords. Use `id` with ban/unban routes.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Sorted by nickname
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AdminUserRow' }
+        '403':
+          description: Forbidden if not ADMIN
+
+  /admin/users/{userId}/ban:
+    post:
+      tags: [Admin]
+      summary: Ban user (admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: User banned
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '403':
+          description: Forbidden if not ADMIN
+        '404':
+          description: User not found
+
+  /admin/users/{userId}/unban:
+    post:
+      tags: [Admin]
+      summary: Unban user (admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: User unbanned
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '403':
+          description: Forbidden if not ADMIN
+        '404':
+          description: User not found
+
+  /admin/blocks:
+    get:
+      tags: [Admin]
+      summary: List all assignment blocks
+      description: >
+        Use `blockerId` and `blockedUserId` from each row with `DELETE /admin/blocks` to remove a pair.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AssignmentBlockAdminRow' }
+        '403':
+          description: Forbidden if not ADMIN
+    delete:
+      tags: [Admin]
+      summary: Remove any block (admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: blockerId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: blockedUserId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: comment
+          required: false
+          schema: { type: string, maxLength: 2000 }
+      responses:
+        '200':
+          description: Block removed and audit row created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '403':
+          description: Forbidden if not ADMIN
+        '404':
+          description: Block not found

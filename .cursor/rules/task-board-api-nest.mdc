@@ -21,6 +21,7 @@ Registered globally in `app.module.ts`: **JwtAuthGuard** → **BannedGuard** →
 
 - Put **`class-validator` / `class-transformer` DTOs** in `dto/` next to the feature (see `src/tasks/dto/`, `src/auth/dto/`).
 - Global pipe: `whitelist`, `forbidNonWhitelisted`, `transform` — unknown body fields **fail** validation.
+- Task metadata: **`PUT /tasks/:id`** with full `ReplaceTaskDto` (not partial PATCH).
 
 ## Prisma
 

@@ -20,10 +20,11 @@ Stack: **NestJS**, **Prisma 7**, **SQLite** (`@prisma/adapter-better-sqlite3`), 
 | Area | Controller | Business logic |
 |------|------------|----------------|
 | Auth (`/auth/*`) | `src/auth/auth.controller.ts` | `src/auth/auth.service.ts` |
-| Tasks (`/tasks/*`) | `src/tasks/tasks.controller.ts` | `src/tasks/tasks.service.ts` (large) |
+| Tasks (`/tasks/*`, `PUT .../:id` replace, `PATCH .../assignee-status`) | `src/tasks/tasks.controller.ts` | `src/tasks/tasks.service.ts` (large) |
+| Tags (`/tags`) | `src/tags/tags.controller.ts` | `src/tags/tags.service.ts` |
 | Users (`/users`) | `src/users/users.controller.ts` | `src/users/users.service.ts` |
 | Blocks (`/blocks/*`) | `src/blocks/blocks.controller.ts` | `src/blocks/blocks.service.ts` |
-| Admin (`/admin/*`) | `src/admin/admin.controller.ts` | `src/admin/admin.service.ts` |
+| Admin (`/admin/*`, `GET /admin/users`, `GET /admin/blocks`) | `src/admin/admin.controller.ts` | `src/admin/admin.service.ts` |
 
 Public routes: `@Public()` on `auth` register/login. Everything else JWT unless marked public.
 

@@ -122,8 +122,8 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/tasks?page=1&pageSize=20&sort=updatedAt&order=desc",
-            "description": "Optional query params: page, pageSize, status (TODO|IN_PROGRESS|DONE), priority (LOW|MEDIUM|HIGH), assignmentStatus (NONE|PENDING|APPROVED|REJECTED), q, tag, sort (createdAt|updatedAt|title), order (asc|desc). Edit the URL to add or change params."
+            "url": "{{baseUrl}}/tasks?page=1&pageSize=20&sort=updatedAt&order=desc&mine=involved&status=TODO&status=IN_PROGRESS&priority=MEDIUM&tag=bug&tag=feature",
+            "description": "Repeat status, priority, tag for OR filters (task with any listed tag). mine=involved optional. Remove extra params as needed."
           }
         },
         {
@@ -150,9 +150,9 @@
           }
         },
         {
-          "name": "Update task",
+          "name": "Replace task (PUT)",
           "request": {
-            "method": "PATCH",
+            "method": "PUT",
             "header": [
               { "key": "Content-Type", "value": "application/json" }
             ],
@@ -160,7 +160,23 @@
               "mode": "raw",
               "raw": "{\n  \"title\": \"Updated title\",\n  \"description\": \"Updated description\",\n  \"status\": \"IN_PROGRESS\",\n  \"priority\": \"HIGH\",\n  \"visibility\": \"ANYONE\",\n  \"viewerUserIds\": []\n}"
             },
-            "url": "{{baseUrl}}/tasks/{{taskId}}"
+            "url": "{{baseUrl}}/tasks/{{taskId}}",
+            "description": "Full body required. creator/admin. Empty description string clears it. viewerUserIds used when visibility is LIST."
+          }
+        },
+        {
+          "name": "Update task status (assignee)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_PROGRESS\"\n}"
+            },
+            "url": "{{baseUrl}}/tasks/{{taskId}}/assignee-status",
+            "description": "Approved assignee or admin only. Values: TODO | IN_PROGRESS | DONE."
           }
         },
         {
@@ -227,6 +243,26 @@
             "method": "DELETE",
             "header": [],
             "url": "{{baseUrl}}/tasks/{{taskId}}/tags/{{tagId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tags",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          { "key": "token", "value": "{{accessToken}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "List tags",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tags",
+            "description": "Use each tag `name` as GET /tasks?tag= filter value."
           }
         }
       ]
@@ -301,6 +337,15 @@
       },
       "item": [
         {
+          "name": "List all users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/users",
+            "description": "Includes banned users. Set targetUserId from response for ban/unban."
+          }
+        },
+        {
           "name": "Ban user",
           "request": {
             "method": "POST",
@@ -315,6 +360,15 @@
             "method": "POST",
             "header": [],
             "url": "{{baseUrl}}/admin/users/{{targetUserId}}/unban"
+          }
+        },
+        {
+          "name": "List all blocks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/blocks",
+            "description": "Copy blockerId and blockedUserId into collection variables for Remove block (admin)."
           }
         },
         {

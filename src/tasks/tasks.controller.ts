@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import type { JwtPayload } from '../auth/jwt-payload.type';
@@ -15,7 +16,8 @@ import { AssignTaskDto } from './dto/assign-task.dto';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks.query.dto';
 import { RejectAssignmentDto } from './dto/reject-assignment.dto';
-import { UpdateTaskDto } from './dto/update-task.dto';
+import { ReplaceTaskDto } from './dto/replace-task.dto';
+import { UpdateAssigneeStatusDto } from './dto/update-assignee-status.dto';
 import { TasksService } from './tasks.service';
 
 @Controller('tasks')
@@ -37,13 +39,22 @@ export class TasksController {
     return this.tasks.create(user, dto);
   }
 
-  @Patch(':id')
-  update(
+  @Patch(':id/assignee-status')
+  updateStatusAsAssignee(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
-    @Body() dto: UpdateTaskDto,
+    @Body() dto: UpdateAssigneeStatusDto,
   ) {
-    return this.tasks.update(user, id, dto);
+    return this.tasks.updateStatusAsAssignee(user, id, dto);
+  }
+
+  @Put(':id')
+  replace(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: ReplaceTaskDto,
+  ) {
+    return this.tasks.replace(user, id, dto);
   }
 
   @Delete(':id')

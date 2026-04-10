@@ -1,4 +1,4 @@
-import { Controller, Delete, Param, Post, Query } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import type { JwtPayload } from '../auth/jwt-payload.type';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -11,6 +11,11 @@ import { DeleteBlockQueryDto } from './dto/delete-block.query.dto';
 export class AdminController {
   constructor(private admin: AdminService) {}
 
+  @Get('users')
+  listUsers() {
+    return this.admin.listUsers();
+  }
+
   @Post('users/:userId/ban')
   ban(@Param('userId') userId: string) {
     return this.admin.banUser(userId);
@@ -19,6 +24,11 @@ export class AdminController {
   @Post('users/:userId/unban')
   unban(@Param('userId') userId: string) {
     return this.admin.unbanUser(userId);
+  }
+
+  @Get('blocks')
+  listBlocks() {
+    return this.admin.listBlocks();
   }
 
   @Delete('blocks')

@@ -42,17 +42,19 @@ Banned users receive **403** with `{ "code": "BANNED" }`.
 
 ## Main routes
 
-- `GET/POST /tasks`, `GET/PATCH/DELETE /tasks/:id`
+- `GET/POST /tasks`, `GET/PUT/DELETE /tasks/:id` — **PUT** replaces full task metadata (`title`, `description`, `status`, `priority`, `visibility`, `viewerUserIds`); creator or admin only
+- `PATCH /tasks/:id/assignee-status` — body `{ "status" }` (approved assignee or admin; workflow status only)
 - `POST /tasks/:id/assignment` — body `{ "assigneeId" }` (self-assign when unassigned; creator/admin assigns others)
 - `POST /tasks/:id/assignment/approve` | `.../reject` — reject body may include `blockAssigner`, `comment`
 - `POST /tasks/:id/tags` — `{ "name" }` · `DELETE /tasks/:id/tags/:tagId`
+- `GET /tags` — all tags (`id`, `name`) for filters; use `name` with `GET /tasks?tag=…`
 - `GET /users` — id/email list for pickers
 - `POST /blocks` — `{ "blockedUserId", "comment?" }` · `GET /blocks/me` · `DELETE /blocks/me/:blockedUserId`
-- Admin: `POST /admin/users/:userId/ban` · `.../unban` · `DELETE /admin/blocks?blockerId=&blockedUserId=&comment?`
+- Admin: `GET /admin/users` (all users, including banned — `bannedAt`, no passwords) · `POST /admin/users/:userId/ban` · `.../unban` · `GET /admin/blocks` · `DELETE /admin/blocks?blockerId=&blockedUserId=&comment?`
 
 ## Query params (optional)
 
-`GET /tasks` supports `page`, `pageSize`, `status`, `priority`, `assignmentStatus`, `q`, `tag`, `sort` (`createdAt` | `updatedAt` | `title`), `order` (`asc` | `desc`). Listing applies visibility + pairwise block rules; illegal filter combinations yield **200** with an empty page where applicable.
+`GET /tasks` supports `page`, `pageSize`, **`status`**, **`priority`**, and **`tag`** each **repeatable** (OR within that dimension: e.g. `?status=TODO&status=DONE` matches either status; multiple `tag` = task has **at least one** of those tags), `assignmentStatus`, `q`, `sort` (`createdAt` | `updatedAt` | `title`), `order` (`asc` | `desc`), and **`mine`**: `created` / `assigned` / `involved` / omit. Listing applies visibility + pairwise block rules; illegal filter combinations yield **200** with an empty page where applicable.
 
 ## Prisma
 

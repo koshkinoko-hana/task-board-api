@@ -5,6 +5,20 @@ import { PrismaService } from '../prisma/prisma.service';
 export class AdminService {
   constructor(private prisma: PrismaService) {}
 
+  listUsers() {
+    return this.prisma.user.findMany({
+      select: {
+        id: true,
+        nickname: true,
+        email: true,
+        role: true,
+        bannedAt: true,
+        createdAt: true,
+      },
+      orderBy: { nickname: 'asc' },
+    });
+  }
+
   async banUser(userId: string) {
     const u = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!u) throw new NotFoundException();
@@ -23,6 +37,16 @@ export class AdminService {
       data: { bannedAt: null },
     });
     return { ok: true };
+  }
+
+  listBlocks() {
+    return this.prisma.assignmentBlock.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        blocker: { select: { id: true, nickname: true, email: true } },
+        blockedUser: { select: { id: true, nickname: true, email: true } },
+      },
+    });
   }
 
   async removeBlock(
