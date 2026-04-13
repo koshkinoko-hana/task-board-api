@@ -44,7 +44,9 @@ Public routes: `@Public()` on `auth` register/login; `PATCH /auth/password` is J
 
 ## API testing & docs
 
+- **Swagger UI:** `GET /docs` when the API runs (loads `postman/openapi.yaml`)
 - Postman: `postman/Task-Board-API.postman_collection.json`
+- OpenAPI source: `postman/openapi.yaml` (keep in sync when routes change)
 - Human-readable route list: `README.md`
 
 When adding a feature, match the existing **module + controller + service + dto/** layout under `src/<feature>/`.

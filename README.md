@@ -23,6 +23,12 @@ npm run start:dev
 
 Default URL: `http://localhost:3000`
 
+## API docs (Swagger)
+
+With the server running, open **[http://localhost:3000/docs](http://localhost:3000/docs)** for interactive OpenAPI documentation (same contract as `postman/openapi.yaml`). Use **Authorize**, choose **bearerAuth**, and paste the **`accessToken`** value from login/register (Swagger sends it as a Bearer token), then call protected routes. **Persist authorization** is enabled so the token survives page refreshes.
+
+If Swagger does not load, ensure you start the app from the **project root** so `postman/openapi.yaml` is found.
+
 ## Seeded accounts
 
 | Nickname | Password      | Role  | Email (optional, for future mail) |
